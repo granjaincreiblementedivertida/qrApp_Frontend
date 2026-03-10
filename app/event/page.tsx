@@ -49,7 +49,7 @@ function EventLoginForm() {
     try {
       const session = await loginWithPassword(email.trim(), password)
       saveSession(session)
-      setMessage(`Bienvenido ${session.user.name || session.user.email}`)
+      setMessage(`Bienvenido ${session?.user?.name || session?.user?.email || "Usuario"}`)
       await finishLogin(session.token)
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "No se pudo iniciar sesion")
@@ -69,7 +69,7 @@ function EventLoginForm() {
     try {
       const session = await loginWithGoogle(credentialResponse.credential)
       saveSession(session)
-      setMessage(`Bienvenido ${session.user.name || session.user.email}`)
+      setMessage(`Bienvenido ${session?.user?.name || session?.user?.email || "Usuario"}`)
       await finishLogin(session.token)
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "No se pudo iniciar sesion con Google")

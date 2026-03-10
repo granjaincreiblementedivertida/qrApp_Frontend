@@ -9,7 +9,7 @@ import {
   getPaymentStatus,
   confirmPaymentSession,
 } from "@/lib/api-client"
-import { getAuthToken, getStoredUser, clearSession } from "@/lib/auth-storage"
+import { getAuthToken, getStoredUser, clearSession, getUserDisplayName, getUserInitial } from "@/lib/auth-storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -92,7 +92,7 @@ function CrearEventoForm() {
                 event_date: data.event_date || undefined,
                 event_type: data.event_type || "other",
                 moderation_enabled: data.moderation_enabled !== false,
-                event_admin_emails: currentUser ? [currentUser.email] : undefined,
+                event_admin_emails: currentUser?.email ? [currentUser.email] : undefined,
                 event_config: {
                   require_login_to_upload: data.require_login_to_upload,
                   allow_anonymous_view: data.allow_anonymous_view,
@@ -133,7 +133,7 @@ function CrearEventoForm() {
       event_date: createForm.event_date || undefined,
       event_type: createForm.event_type || "other",
       moderation_enabled: createForm.moderation_enabled !== false,
-      event_admin_emails: user ? [user.email] : undefined,
+      event_admin_emails: user?.email ? [user.email] : undefined,
       event_config: {
         require_login_to_upload: createForm.require_login_to_upload,
         allow_anonymous_view: createForm.allow_anonymous_view,
@@ -204,8 +204,8 @@ function CrearEventoForm() {
             </Link>
             {user ? (
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-gray-300 truncate max-w-[120px] md:max-w-[180px]" title={user.email}>
-                  {user.name || user.email}
+                <span className="text-sm font-medium text-gray-300 truncate max-w-[120px] md:max-w-[180px]" title={user.email || ""}>
+                  {getUserDisplayName(user) || user.email || "Usuario"}
                 </span>
                 {user.avatar_url ? (
                   <img
@@ -215,7 +215,7 @@ function CrearEventoForm() {
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-brand-accent flex items-center justify-center text-white text-sm font-bold">
-                    {(user.name || user.email).charAt(0).toUpperCase()}
+                    {getUserInitial(user)}
                   </div>
                 )}
                 <button

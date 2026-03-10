@@ -26,12 +26,34 @@ export function getAuthToken() {
   return localStorage.getItem(AUTH_TOKEN_KEY)
 }
 
-export function getStoredUser() {
+/** Devuelve una cadena segura para mostrar nombre o email del usuario. */
+type DisplayUser = {
+  name?: string | null
+  email?: string | null
+} | null
+
+export function getUserDisplayName(user: DisplayUser): string {
+  if (!user) return ""
+  return (user.name && String(user.name).trim()) || (user.email && String(user.email)) || ""
+}
+
+/** Devuelve la inicial para avatar (una letra). */
+export function getUserInitial(user: DisplayUser): string {
+  const name = getUserDisplayName(user)
+  return name ? name.charAt(0).toUpperCase() : ""
+}
+
+export function getStoredUser(): UserSession["user"] | null {
   if (!inBrowser()) return null
   const raw = localStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as UserSession["user"]
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || typeof parsed !== "object") return null
+    const id = parsed.id != null ? String(parsed.id) : ""
+    const email = parsed.email != null ? String(parsed.email) : ""
+    if (!email && !id) return null
+    return { ...parsed, id, email } as UserSession["user"]
   } catch {
     return null
   }

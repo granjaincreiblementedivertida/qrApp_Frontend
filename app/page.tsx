@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { getStoredUser, clearSession } from "@/lib/auth-storage"
+import { getStoredUser, clearSession, getUserDisplayName, getUserInitial } from "@/lib/auth-storage"
 import { useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 
@@ -59,11 +59,11 @@ export default function HomePage() {
                     <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border border-white/10" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-brand-accent flex items-center justify-center text-white text-sm font-bold">
-                      {(user.name || user.email).charAt(0).toUpperCase()}
+                      {getUserInitial(user)}
                     </div>
                   )}
-                  <span className="font-medium truncate max-w-[100px] md:max-w-[140px]" title={user.email}>
-                    {user.name || user.email}
+                  <span className="font-medium truncate max-w-[100px] md:max-w-[140px]" title={user.email || ""}>
+                    {getUserDisplayName(user) || user.email || "Usuario"}
                   </span>
                 </Link>
                 <Link href="/crear-evento" className="bg-white text-black px-5 py-2 rounded-full text-sm font-bold hover:bg-gray-200 transition-all shadow-lg shadow-white/5">
