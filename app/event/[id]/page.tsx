@@ -249,7 +249,7 @@ export default function EventPage({ params }: EventPageProps) {
             <h2 className="text-lg font-semibold text-foreground">
               {photos.length} Fotos
             </h2>
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               {selectionMode ? (
                 <>
                   <Button
@@ -281,7 +281,7 @@ export default function EventPage({ params }: EventPageProps) {
                   Seleccionar fotos
                 </Button>
               )}
-            </div>
+            </div> */}
           </div>
           <PhotoGrid
             photos={photos}

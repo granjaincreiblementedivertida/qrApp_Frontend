@@ -148,7 +148,7 @@ export function StoryViewer({
           <span className="text-white/70">·</span>
           <Calendar className="h-4 w-4 shrink-0 text-white/70" />
           <span className="text-white/80 text-xs sm:text-sm">{photo.created_at}</span>
-          <div>
+          {/* <div>
             <button
               type="button"
               onClick={handleDownloadSelected}
@@ -157,7 +157,7 @@ export function StoryViewer({
               <Download className="size-4 text-white" />
               Descargar
             </button>
-          </div>
+          </div> */}
         </div>
       </div>
 
