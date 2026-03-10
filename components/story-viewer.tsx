@@ -144,15 +144,15 @@ export function StoryViewer({
       <div className="absolute bottom-0 left-0 right-0 p-4 pb-8 bg-gradient-to-t from-black/80 to-transparent rounded-b-lg">
         <div className="max-w-5xl mx-auto flex items-center gap-3 text-white/95">
           <User className="h-4 w-4 shrink-0" />
-          <span className="font-medium">{photo.username}</span>
+          <span className="font-medium text-xs sm:text-sm">{photo.username}</span>
           <span className="text-white/70">·</span>
           <Calendar className="h-4 w-4 shrink-0 text-white/70" />
-          <span className="text-white/80 text-sm">{photo.created_at}</span>
+          <span className="text-white/80 text-xs sm:text-sm">{photo.created_at}</span>
           <div>
             <button
               type="button"
               onClick={handleDownloadSelected}
-              className="gap-1.5 text-white justify-center items-center flex border border-white rounded-md px-2 py-1 hover:bg-white/40 hover:text-white transition-colors hover:cursor-pointer"
+              className="gap-1.5 text-white justify-center items-center flex border border-white rounded-md px-2 py-1 hover:bg-white/40 hover:text-white transition-colors hover:cursor-pointer sm:text-sm"
             >
               <Download className="size-4 text-white" />
               Descargar
