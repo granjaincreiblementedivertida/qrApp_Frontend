@@ -24,7 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Download, SquarePen } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, SquarePen } from "lucide-react"
+
+const PHOTOS_PER_PAGE = 24
 
 type EventPageProps = {
   params: Promise<{ id: string }>
@@ -32,7 +34,10 @@ type EventPageProps = {
 
 function formatEventDate(value?: string | null) {
   if (!value) return "Fecha por confirmar"
-  const date = new Date(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString("es-ES", {
     year: "numeric",
@@ -67,6 +72,9 @@ export default function EventPage({ params }: EventPageProps) {
   const [loginModalOpen, setLoginModalOpen] = useState(false)
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null)
   const [photos, setPhotos] = useState<ReturnType<typeof mapPhoto>[]>([])
+  const [galleryPage, setGalleryPage] = useState(1)
+  const [totalPhotos, setTotalPhotos] = useState(0)
+  const [loadingGallery, setLoadingGallery] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [storyIndex, setStoryIndex] = useState<number | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
@@ -87,8 +95,10 @@ export default function EventPage({ params }: EventPageProps) {
         setEventInfo(event)
         setEventId(event.id)
         const token = getAuthToken() || undefined
-        const gallery = await getGallery(event.id, 1, 24, token)
+        const gallery = await getGallery(event.id, 1, PHOTOS_PER_PAGE, token)
         setPhotos(gallery.photos.map(mapPhoto))
+        setTotalPhotos(gallery.total)
+        setGalleryPage(1)
       } catch (loadError) {
         setEventError(loadError instanceof Error ? loadError.message : "No se pudo cargar el evento")
       } finally {
@@ -100,8 +110,25 @@ export default function EventPage({ params }: EventPageProps) {
 
   const refreshGallery = async (id: string) => {
     const token = getAuthToken() || undefined
-    const gallery = await getGallery(id, 1, 24, token)
+    const gallery = await getGallery(id, galleryPage, PHOTOS_PER_PAGE, token)
     setPhotos(gallery.photos.map(mapPhoto))
+    setTotalPhotos(gallery.total)
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalPhotos / PHOTOS_PER_PAGE))
+
+  const loadPage = async (page: number) => {
+    if (!eventId || page < 1 || page > totalPages) return
+    setLoadingGallery(true)
+    try {
+      const token = getAuthToken() || undefined
+      const gallery = await getGallery(eventId, page, PHOTOS_PER_PAGE, token)
+      setPhotos(gallery.photos.map(mapPhoto))
+      setTotalPhotos(gallery.total)
+      setGalleryPage(page)
+    } finally {
+      setLoadingGallery(false)
+    }
   }
 
   const handleUploadClick = () => {
@@ -247,7 +274,9 @@ export default function EventPage({ params }: EventPageProps) {
           
           <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
             <h2 className="text-lg font-semibold text-foreground">
-              {photos.length} Fotos
+              {totalPhotos <= PHOTOS_PER_PAGE
+                ? `${totalPhotos} Fotos`
+                : `${(galleryPage - 1) * PHOTOS_PER_PAGE + 1}-${Math.min(galleryPage * PHOTOS_PER_PAGE, totalPhotos)} de ${totalPhotos} Fotos`}
             </h2>
             {/* <div className="flex items-center gap-2">
               {selectionMode ? (
@@ -290,6 +319,61 @@ export default function EventPage({ params }: EventPageProps) {
             selectedIds={selectedPhotoIds}
             onSelectionChange={handleSelectionChange}
           />
+
+          {totalPages > 1 && (
+            <nav
+              className="mt-6 flex flex-wrap items-center justify-center gap-2"
+              aria-label="Paginación de la galería"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={galleryPage <= 1 || loadingGallery}
+                onClick={() => loadPage(galleryPage - 1)}
+                className="gap-1"
+              >
+                <ChevronLeft className="size-4" />
+                Anterior
+              </Button>
+              <span className="flex items-center gap-1.5 px-2 text-sm text-muted-foreground">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => {
+                    if (totalPages <= 7) return true
+                    if (p === 1 || p === totalPages) return true
+                    if (Math.abs(p - galleryPage) <= 1) return true
+                    return false
+                  })
+                  .map((p, idx, arr) => {
+                    const prev = arr[idx - 1]
+                    const showEllipsis = prev != null && p - prev > 1
+                    return (
+                      <span key={p} className="flex items-center gap-1">
+                        {showEllipsis && <span className="px-1">…</span>}
+                        <Button
+                          variant={galleryPage === p ? "default" : "ghost"}
+                          size="sm"
+                          className="min-w-8"
+                          disabled={loadingGallery}
+                          onClick={() => loadPage(p)}
+                        >
+                          {p}
+                        </Button>
+                      </span>
+                    )
+                  })}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={galleryPage >= totalPages || loadingGallery}
+                onClick={() => loadPage(galleryPage + 1)}
+                className="gap-1"
+              >
+                Siguiente
+                <ChevronRight className="size-4" />
+              </Button>
+            </nav>
+          )}
         </div>
       </main>
 
