@@ -168,6 +168,10 @@ export default function AdminEventViewPage({ params }: PageProps) {
               <li>Vista anónima: {config.allow_anonymous_view ? "Sí" : "No"}</li>
               <li>Requiere login para subir: {config.require_login_to_upload ? "Sí" : "No"}</li>
               <li>Auto-moderación: {config.auto_moderation_enabled ? "Sí" : "No"}</li>
+              <li>
+                Mostrar fotos sin aprobar:{" "}
+                {config.show_unapproved_photos ? "Sí" : "No"}
+              </li>
               <li>Máx. tamaño (MB): {config.max_photo_size_mb}</li>
               <li>Máx. fotos por usuario: {config.max_photos_per_user}</li>
             </ul>

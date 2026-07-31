@@ -54,7 +54,7 @@ export function Navbar({ onUploadClick, showUpload = true, user }: NavbarProps) 
             {showUpload && (
               <Button onClick={onUploadClick} size="sm">
                 <Upload className="h-4 w-4 mr-2" />
-                Subir hasta 5 fotos
+                Subir fotos
               </Button>
             )}
           </div>

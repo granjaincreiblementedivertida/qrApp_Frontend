@@ -1,9 +1,8 @@
 "use client"
 
 import Image from "next/image"
-import { User, Calendar, Check, Download } from "lucide-react"
+import { User, Calendar, Check, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Button } from "./ui/button"
 
 interface PhotoCardProps {
   src: string
@@ -15,9 +14,22 @@ interface PhotoCardProps {
   selectionMode?: boolean
   selected?: boolean
   onSelect?: () => void
+  /** Mostrar etiqueta “En revisión” en fotos pending (show_unapproved_photos). */
+  showPendingBadge?: boolean
 }
 
-export function PhotoCard({ src, alt, username, created_at, onClick, selectionMode, selected, onSelect }: PhotoCardProps) {
+export function PhotoCard({
+  src,
+  alt,
+  username,
+  created_at,
+  status,
+  onClick,
+  selectionMode,
+  selected,
+  onSelect,
+  showPendingBadge = false,
+}: PhotoCardProps) {
   const handleClick = () => {
     if (selectionMode && onSelect) {
       onSelect()
@@ -25,8 +37,6 @@ export function PhotoCard({ src, alt, username, created_at, onClick, selectionMo
       onClick?.()
     }
   }
-
- 
 
   return (
     <div
@@ -43,6 +53,12 @@ export function PhotoCard({ src, alt, username, created_at, onClick, selectionMo
         className="object-cover transition-transform duration-300 group-hover:scale-105"
         sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 20vw"
       />
+      {showPendingBadge && status === "pending" && (
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-md bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-foreground shadow-sm">
+          <Clock className="size-3 text-warning-foreground" />
+          En revisión
+        </div>
+      )}
       {selectionMode && (
         <div className="absolute top-2 right-2 z-10 flex items-center justify-center size-6 rounded-full bg-background/80 border border-foreground/20">
           {selected ? (
@@ -62,7 +78,6 @@ export function PhotoCard({ src, alt, username, created_at, onClick, selectionMo
           <Calendar className="h-3 w-3" />
           <span>{created_at}</span>
         </div>
-        
       </div>
     </div>
   )

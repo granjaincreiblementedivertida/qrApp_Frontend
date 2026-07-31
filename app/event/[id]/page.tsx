@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google"
 import { Navbar } from "@/components/navbar"
 import { EventHeader } from "@/components/event-header"
@@ -10,6 +10,7 @@ import { UploadModal } from "@/components/upload-modal"
 import {
   getEventByIdOrSlug,
   getGallery,
+  getUploadLimits,
   loginWithGoogle,
   uploadPhotos,
   type EventSummary,
@@ -24,7 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Download, SquarePen } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const PHOTOS_PER_PAGE = 24
 
@@ -79,6 +80,31 @@ export default function EventPage({ params }: EventPageProps) {
   const [storyIndex, setStoryIndex] = useState<number | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
+  const [uploadMaxFiles, setUploadMaxFiles] = useState(50)
+  const [uploadMaxSizeMb, setUploadMaxSizeMb] = useState(5)
+  const [galleryNeedsLogin, setGalleryNeedsLogin] = useState(false)
+  const [loginPurpose, setLoginPurpose] = useState<"upload" | "view">("upload")
+
+  const eventConfig = eventInfo?.EventConfig
+  const allowUploads = eventConfig?.allow_uploads !== false
+  const requireLoginToUpload = eventConfig?.require_login_to_upload !== false
+  /** Activo: pendientes visibles. Inactivo: solo aprobadas. */
+  const showUnapprovedPhotos = !!eventConfig?.show_unapproved_photos
+  const maxPhotoSizeMb = eventConfig?.max_photo_size_mb ?? 5
+  const maxPhotosPerUser = eventConfig?.max_photos_per_user ?? 50
+
+  /** Galería según show_unapproved_photos. */
+  const visiblePhotos = useMemo(() => {
+    if (showUnapprovedPhotos) return photos
+    return photos.filter((p) => p.status === "approved")
+  }, [photos, showUnapprovedPhotos])
+
+  const visibleTotal = useMemo(() => {
+    if (showUnapprovedPhotos) return totalPhotos
+    if (photos.length === 0) return totalPhotos
+    const hiddenOnPage = photos.length - visiblePhotos.length
+    return Math.max(0, totalPhotos - hiddenOnPage)
+  }, [showUnapprovedPhotos, totalPhotos, photos.length, visiblePhotos.length])
 
   useEffect(() => {
     setUser(getStoredUser())
@@ -90,17 +116,35 @@ export default function EventPage({ params }: EventPageProps) {
       const routeId = resolved.id
       setLoadingEvent(true)
       setEventError(null)
+      setGalleryNeedsLogin(false)
       try {
         const event = await getEventByIdOrSlug(routeId)
         setEventInfo(event)
         setEventId(event.id)
+        setUploadMaxFiles(event.EventConfig?.max_photos_per_user ?? 50)
+        setUploadMaxSizeMb(event.EventConfig?.max_photo_size_mb ?? 5)
+
         const token = getAuthToken() || undefined
+        const canViewAnonymously = event.EventConfig?.allow_anonymous_view !== false
+        if (!canViewAnonymously && !token) {
+          setGalleryNeedsLogin(true)
+          setPhotos([])
+          setTotalPhotos(0)
+          return
+        }
+
         const gallery = await getGallery(event.id, 1, PHOTOS_PER_PAGE, token)
         setPhotos(gallery.photos.map(mapPhoto))
         setTotalPhotos(gallery.total)
         setGalleryPage(1)
       } catch (loadError) {
-        setEventError(loadError instanceof Error ? loadError.message : "No se pudo cargar el evento")
+        const message = loadError instanceof Error ? loadError.message : "No se pudo cargar el evento"
+        if (/iniciar sesión|login|autentic/i.test(message)) {
+          setGalleryNeedsLogin(true)
+          setEventError(null)
+        } else {
+          setEventError(message)
+        }
       } finally {
         setLoadingEvent(false)
       }
@@ -113,9 +157,22 @@ export default function EventPage({ params }: EventPageProps) {
     const gallery = await getGallery(id, galleryPage, PHOTOS_PER_PAGE, token)
     setPhotos(gallery.photos.map(mapPhoto))
     setTotalPhotos(gallery.total)
+    setGalleryNeedsLogin(false)
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalPhotos / PHOTOS_PER_PAGE))
+  const refreshUploadLimits = async (id: string) => {
+    const token = getAuthToken()
+    try {
+      const limits = await getUploadLimits(id, token)
+      setUploadMaxFiles(limits.photos_remaining)
+      setUploadMaxSizeMb(limits.max_photo_size_mb)
+    } catch {
+      setUploadMaxFiles(maxPhotosPerUser)
+      setUploadMaxSizeMb(maxPhotoSizeMb)
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(visibleTotal / PHOTOS_PER_PAGE))
 
   const loadPage = async (page: number) => {
     if (!eventId || page < 1 || page > totalPages) return
@@ -131,13 +188,26 @@ export default function EventPage({ params }: EventPageProps) {
     }
   }
 
+  const openUploadModal = async () => {
+    if (eventId) await refreshUploadLimits(eventId)
+    setUploadModalOpen(true)
+  }
+
   const handleUploadClick = () => {
-    if (!getAuthToken()) {
+    if (!allowUploads) return
+    if (requireLoginToUpload && !getAuthToken()) {
+      setLoginPurpose("upload")
       setLoginError(null)
       setLoginModalOpen(true)
-    } else {
-      setUploadModalOpen(true)
+      return
     }
+    void openUploadModal()
+  }
+
+  const handleViewLoginClick = () => {
+    setLoginPurpose("view")
+    setLoginError(null)
+    setLoginModalOpen(true)
   }
 
   const handleGoogleLoginSuccess = async (credentialResponse: CredentialResponse) => {
@@ -151,14 +221,19 @@ export default function EventPage({ params }: EventPageProps) {
       saveSession(session)
       setUser(session.user)
       setLoginModalOpen(false)
-      setUploadModalOpen(true)
+      if (eventId) {
+        await refreshGallery(eventId)
+      }
+      if (loginPurpose === "upload" && allowUploads) {
+        await openUploadModal()
+      }
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : "No se pudo iniciar sesión con Google")
     }
   }
 
   const handlePhotoClick = (photo: { id: string }) => {
-    const index = photos.findIndex((p) => p.id === photo.id)
+    const index = visiblePhotos.findIndex((p) => p.id === photo.id)
     if (index >= 0) setStoryIndex(index)
   }
 
@@ -171,39 +246,24 @@ export default function EventPage({ params }: EventPageProps) {
     })
   }
 
-  const handleDownloadSelected = async () => {
-    const selected = photos.filter((p) => selectedPhotoIds.has(p.id))
-    if (selected.length === 0) return
-    for (let i = 0; i < selected.length; i++) {
-      const photo = selected[i]
-      try {
-        const res = await fetch(photo.src)
-        const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `foto-${i + 1} - ${Date.now()}.jpg`
-        a.click()
-        URL.revokeObjectURL(url)
-      } catch {
-        // Fallback: abrir en nueva pestaña
-        window.open(photo.src, "_blank")
-      }
-    }
-  }
-
-  const exitSelectionMode = () => {
-    setSelectionMode(false)
-    setSelectedPhotoIds(new Set())
-  }
-
   const handleUpload = async (files: File[]) => {
     if (!eventId) throw new Error("Evento no encontrado")
+    if (!allowUploads) throw new Error("Las subidas están deshabilitadas para este evento")
     const token = getAuthToken()
-    if (!token) throw new Error("Debes iniciar sesión para subir fotos")
+    if (requireLoginToUpload && !token) {
+      throw new Error("Debes iniciar sesión para subir fotos")
+    }
     if (files.length === 0) return
-    await uploadPhotos(eventId, token, files)
+    const oversized = files.filter((f) => f.size > uploadMaxSizeMb * 1024 * 1024)
+    if (oversized.length > 0) {
+      throw new Error(`Cada foto puede pesar máximo ${uploadMaxSizeMb} MB`)
+    }
+    if (files.length > uploadMaxFiles) {
+      throw new Error(`Solo puedes subir ${uploadMaxFiles} foto(s) más`)
+    }
+    await uploadPhotos(eventId, files, token)
     await refreshGallery(eventId)
+    await refreshUploadLimits(eventId)
   }
 
   if (loadingEvent) {
@@ -232,16 +292,22 @@ export default function EventPage({ params }: EventPageProps) {
     <div className="min-h-screen bg-background">
       <Navbar
         onUploadClick={handleUploadClick}
-        showUpload={eventInfo.EventConfig?.allow_uploads !== false}
+        showUpload={allowUploads}
         user={user}
       />
 
       <Dialog open={loginModalOpen} onOpenChange={setLoginModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Inicia sesión para subir fotos</DialogTitle>
+            <DialogTitle>
+              {loginPurpose === "view"
+                ? "Inicia sesión para ver la galería"
+                : "Inicia sesión para subir fotos"}
+            </DialogTitle>
             <DialogDescription>
-              Usa tu cuenta de Google para subir fotos a la galería del evento.
+              {loginPurpose === "view"
+                ? "Este evento no permite ver la galería de forma anónima."
+                : `Este evento requiere cuenta de Google para subir fotos (hasta ${maxPhotosPerUser} por usuario, máx. ${maxPhotoSizeMb} MB c/u).`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
@@ -257,7 +323,7 @@ export default function EventPage({ params }: EventPageProps) {
           </div>
         </DialogContent>
       </Dialog>
-      
+
       <main>
         <EventHeader
           name={eventInfo.name}
@@ -271,120 +337,101 @@ export default function EventPage({ params }: EventPageProps) {
         />
 
         <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
-          
-          <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-            <h2 className="text-lg font-semibold text-foreground">
-              {totalPhotos <= PHOTOS_PER_PAGE
-                ? `${totalPhotos} Fotos`
-                : `${(galleryPage - 1) * PHOTOS_PER_PAGE + 1}-${Math.min(galleryPage * PHOTOS_PER_PAGE, totalPhotos)} de ${totalPhotos} Fotos`}
-            </h2>
-            {/* <div className="flex items-center gap-2">
-              {selectionMode ? (
-                <>
+          {galleryNeedsLogin ? (
+            <div className="rounded-xl border border-border bg-muted/30 p-8 text-center space-y-4">
+              <p className="font-medium text-foreground">Galería privada</p>
+              <p className="text-sm text-muted-foreground">
+                Este evento no permite vista anónima. Inicia sesión para ver las fotos.
+              </p>
+              <Button onClick={handleViewLoginClick}>Iniciar sesión</Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                <h2 className="text-lg font-semibold text-foreground">
+                  {visibleTotal <= PHOTOS_PER_PAGE
+                    ? `${visibleTotal} Fotos`
+                    : `${(galleryPage - 1) * PHOTOS_PER_PAGE + 1}-${Math.min(galleryPage * PHOTOS_PER_PAGE, visibleTotal)} de ${visibleTotal} Fotos`}
+                </h2>
+              </div>
+              <PhotoGrid
+                photos={visiblePhotos}
+                onPhotoClick={handlePhotoClick}
+                selectionMode={selectionMode}
+                selectedIds={selectedPhotoIds}
+                onSelectionChange={handleSelectionChange}
+                showPendingBadge={showUnapprovedPhotos}
+              />
+
+              {totalPages > 1 && (
+                <nav
+                  className="mt-6 flex flex-wrap items-center justify-center gap-2"
+                  aria-label="Paginación de la galería"
+                >
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={exitSelectionMode}
+                    disabled={galleryPage <= 1 || loadingGallery}
+                    onClick={() => loadPage(galleryPage - 1)}
+                    className="gap-1"
                   >
-                    Cancelar
+                    <ChevronLeft className="size-4" />
+                    Anterior
                   </Button>
+                  <span className="flex items-center gap-1.5 px-2 text-sm text-muted-foreground">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => {
+                        if (totalPages <= 7) return true
+                        if (p === 1 || p === totalPages) return true
+                        if (Math.abs(p - galleryPage) <= 1) return true
+                        return false
+                      })
+                      .map((p, idx, arr) => {
+                        const prev = arr[idx - 1]
+                        const showEllipsis = prev != null && p - prev > 1
+                        return (
+                          <span key={p} className="flex items-center gap-1">
+                            {showEllipsis && <span className="px-1">…</span>}
+                            <Button
+                              variant={galleryPage === p ? "default" : "ghost"}
+                              size="sm"
+                              className="min-w-8"
+                              disabled={loadingGallery}
+                              onClick={() => loadPage(p)}
+                            >
+                              {p}
+                            </Button>
+                          </span>
+                        )
+                      })}
+                  </span>
                   <Button
-                    variant="default"
+                    variant="outline"
                     size="sm"
-                    onClick={handleDownloadSelected}
-                    disabled={selectedPhotoIds.size === 0}
-                    className="gap-1.5"
+                    disabled={galleryPage >= totalPages || loadingGallery}
+                    onClick={() => loadPage(galleryPage + 1)}
+                    className="gap-1"
                   >
-                    <Download className="size-4" />
-                    Descargar ({selectedPhotoIds.size})
+                    Siguiente
+                    <ChevronRight className="size-4" />
                   </Button>
-                </>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectionMode(true)}
-                  className="gap-1.5"
-                >
-                  <SquarePen className="size-4" />
-                  Seleccionar fotos
-                </Button>
+                </nav>
               )}
-            </div> */}
-          </div>
-          <PhotoGrid
-            photos={photos}
-            onPhotoClick={handlePhotoClick}
-            selectionMode={selectionMode}
-            selectedIds={selectedPhotoIds}
-            onSelectionChange={handleSelectionChange}
-          />
-
-          {totalPages > 1 && (
-            <nav
-              className="mt-6 flex flex-wrap items-center justify-center gap-2"
-              aria-label="Paginación de la galería"
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={galleryPage <= 1 || loadingGallery}
-                onClick={() => loadPage(galleryPage - 1)}
-                className="gap-1"
-              >
-                <ChevronLeft className="size-4" />
-                Anterior
-              </Button>
-              <span className="flex items-center gap-1.5 px-2 text-sm text-muted-foreground">
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => {
-                    if (totalPages <= 7) return true
-                    if (p === 1 || p === totalPages) return true
-                    if (Math.abs(p - galleryPage) <= 1) return true
-                    return false
-                  })
-                  .map((p, idx, arr) => {
-                    const prev = arr[idx - 1]
-                    const showEllipsis = prev != null && p - prev > 1
-                    return (
-                      <span key={p} className="flex items-center gap-1">
-                        {showEllipsis && <span className="px-1">…</span>}
-                        <Button
-                          variant={galleryPage === p ? "default" : "ghost"}
-                          size="sm"
-                          className="min-w-8"
-                          disabled={loadingGallery}
-                          onClick={() => loadPage(p)}
-                        >
-                          {p}
-                        </Button>
-                      </span>
-                    )
-                  })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={galleryPage >= totalPages || loadingGallery}
-                onClick={() => loadPage(galleryPage + 1)}
-                className="gap-1"
-              >
-                Siguiente
-                <ChevronRight className="size-4" />
-              </Button>
-            </nav>
+            </>
           )}
         </div>
       </main>
 
       {storyIndex !== null && (
         <StoryViewer
-          photos={photos}
-          currentIndex={storyIndex}
+          photos={visiblePhotos}
+          currentIndex={Math.min(storyIndex, Math.max(0, visiblePhotos.length - 1))}
           onClose={() => setStoryIndex(null)}
           onPrev={() => setStoryIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
           onNext={() =>
-            setStoryIndex((i) => (i !== null && i < photos.length - 1 ? i + 1 : i))
+            setStoryIndex((i) =>
+              i !== null && i < visiblePhotos.length - 1 ? i + 1 : i
+            )
           }
         />
       )}
@@ -393,6 +440,10 @@ export default function EventPage({ params }: EventPageProps) {
         open={uploadModalOpen}
         onOpenChange={setUploadModalOpen}
         onUpload={handleUpload}
+        maxFiles={uploadMaxFiles}
+        maxPhotoSizeMb={uploadMaxSizeMb}
+        moderationEnabled={!!eventInfo.moderation_enabled}
+        showUnapprovedPhotos={showUnapprovedPhotos}
       />
     </div>
   )

@@ -29,6 +29,7 @@ const INITIAL_FORM = {
   allow_anonymous_view: true,
   allow_uploads: true,
   auto_moderation_enabled: false,
+  show_unapproved_photos: false,
   max_photo_size_mb: 5,
   max_photos_per_user: 50,
 }
@@ -98,6 +99,7 @@ function CrearEventoForm() {
                   allow_anonymous_view: data.allow_anonymous_view,
                   allow_uploads: data.allow_uploads,
                   auto_moderation_enabled: data.auto_moderation_enabled,
+                  show_unapproved_photos: data.show_unapproved_photos,
                   max_photo_size_mb: Number(data.max_photo_size_mb) || 5,
                   max_photos_per_user: Number(data.max_photos_per_user) || 50,
                 },
@@ -139,6 +141,7 @@ function CrearEventoForm() {
         allow_anonymous_view: createForm.allow_anonymous_view,
         allow_uploads: createForm.allow_uploads,
         auto_moderation_enabled: createForm.auto_moderation_enabled,
+        show_unapproved_photos: createForm.show_unapproved_photos,
         max_photo_size_mb: Number(createForm.max_photo_size_mb) || 5,
         max_photos_per_user: Number(createForm.max_photos_per_user) || 50,
       },
@@ -419,6 +422,23 @@ function CrearEventoForm() {
                           id="cfg-auto-mod"
                           checked={createForm.auto_moderation_enabled}
                           onCheckedChange={(c) => setCreateForm((p) => ({ ...p, auto_moderation_enabled: c }))}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <Label htmlFor="cfg-show-unapproved" className="text-gray-400 text-sm">
+                            Mostrar fotos sin aprobar
+                          </Label>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Activo: se muestran aunque no estén aprobadas. Inactivo: solo tras aprobación del admin.
+                          </p>
+                        </div>
+                        <Switch
+                          id="cfg-show-unapproved"
+                          checked={createForm.show_unapproved_photos}
+                          onCheckedChange={(c) =>
+                            setCreateForm((p) => ({ ...p, show_unapproved_photos: c }))
+                          }
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">

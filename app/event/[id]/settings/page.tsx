@@ -477,13 +477,13 @@ export default function EventSettingsPage({ params }: PageProps) {
         {/* Danger Zone */}
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6">
           <h2 className="text-lg font-semibold text-destructive mb-4">
-            Danger Zone
+            Precaución
           </h2>
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-foreground">Delete Event</p>
+              <p className="font-medium text-foreground">Eliminar Evento</p>
               <p className="text-sm text-muted-foreground">
-                Permanently delete this event and all photos
+                Esta acción eliminará todas las fotos del evento en Cloudinary y todos los datos. No se puede deshacer.
               </p>
             </div>
             <Button
@@ -525,7 +525,7 @@ export default function EventSettingsPage({ params }: PageProps) {
                 }
               }}
             >
-              {deletingEvent ? "Eliminando…" : "Delete Event"}
+              {deletingEvent ? "Eliminando…" : "Eliminar evento"}
             </Button>
           </div>
         </div>
@@ -533,7 +533,7 @@ export default function EventSettingsPage({ params }: PageProps) {
         {/* Save Button */}
         <div className="flex justify-end">
           <Button onClick={handleSave} disabled={saving || loading || !eventId}>
-            {saving ? "Guardando..." : "Save Changes"}
+            {saving ? "Guardando..." : "Guardar cambios"}
           </Button>
         </div>
         {message && (

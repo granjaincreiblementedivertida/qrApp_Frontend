@@ -46,6 +46,7 @@ const INITIAL_FORM = {
   allow_anonymous_view: true,
   allow_uploads: true,
   auto_moderation_enabled: false,
+  show_unapproved_photos: false,
   max_photo_size_mb: 5,
   max_photos_per_user: 50,
 }
@@ -122,6 +123,7 @@ export default function EventsPage() {
           allow_anonymous_view: createForm.allow_anonymous_view,
           allow_uploads: createForm.allow_uploads,
           auto_moderation_enabled: createForm.auto_moderation_enabled,
+          show_unapproved_photos: createForm.show_unapproved_photos,
           max_photo_size_mb: Number(createForm.max_photo_size_mb),
           max_photos_per_user: Number(createForm.max_photos_per_user),
         },
@@ -156,6 +158,7 @@ export default function EventsPage() {
       allow_anonymous_view: cfg?.allow_anonymous_view ?? true,
       allow_uploads: cfg?.allow_uploads ?? true,
       auto_moderation_enabled: cfg?.auto_moderation_enabled ?? false,
+      show_unapproved_photos: cfg?.show_unapproved_photos ?? false,
       max_photo_size_mb: cfg?.max_photo_size_mb ?? 5,
       max_photos_per_user: cfg?.max_photos_per_user ?? 50,
     })
@@ -181,6 +184,7 @@ export default function EventsPage() {
           allow_anonymous_view: createForm.allow_anonymous_view,
           allow_uploads: createForm.allow_uploads,
           auto_moderation_enabled: createForm.auto_moderation_enabled,
+          show_unapproved_photos: createForm.show_unapproved_photos,
           max_photo_size_mb: Number(createForm.max_photo_size_mb),
           max_photos_per_user: Number(createForm.max_photos_per_user),
         },
@@ -320,6 +324,21 @@ export default function EventsPage() {
               id="cfgAutoMod"
               checked={createForm.auto_moderation_enabled}
               onCheckedChange={(checked) => setCreateForm((prev) => ({ ...prev, auto_moderation_enabled: checked }))}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 sm:col-span-2">
+            <div>
+              <Label htmlFor="cfgShowUnapproved">Mostrar fotos sin aprobar</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Activo: se muestran en la galería aunque aún no estén aprobadas. Inactivo: no se muestran hasta que el admin las apruebe.
+              </p>
+            </div>
+            <Switch
+              id="cfgShowUnapproved"
+              checked={createForm.show_unapproved_photos}
+              onCheckedChange={(checked) =>
+                setCreateForm((prev) => ({ ...prev, show_unapproved_photos: checked }))
+              }
             />
           </div>
           <div>

@@ -34,6 +34,7 @@ export type EventSummary = {
     max_photo_size_mb: number
     max_photos_per_user: number
     auto_moderation_enabled: boolean
+    show_unapproved_photos: boolean
     require_login_to_upload: boolean
   }
 }
@@ -70,6 +71,7 @@ export type EventStats = {
     max_photo_size_mb: number
     max_photos_per_user: number
     auto_moderation_enabled: boolean
+    show_unapproved_photos: boolean
   }
 }
 
@@ -190,23 +192,50 @@ export async function getUploadParams(eventId: string, token: string) {
   })
 }
 
-/** Subir hasta 5 fotos al backend; el backend las envía a Cloudinary y las registra. */
-export async function uploadPhotos(eventId: string, token: string, files: File[]) {
+/** Subir fotos al backend; respeta EventConfig (cantidad y peso). Token opcional si el evento no exige login. */
+export async function uploadPhotos(eventId: string, files: File[], token?: string | null) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000/api"
   const formData = new FormData()
   for (const file of files) {
     formData.append("files", file)
   }
+  const headers: HeadersInit = {}
+  if (token) headers.Authorization = `Bearer ${token}`
   const response = await fetch(`${API_BASE_URL}/events/${eventId}/photos/upload`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers,
     body: formData,
   })
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null
     throw new Error(body?.error || "Error al subir las fotos")
   }
-  return response.json() as Promise<{ uploaded: number; photos: GalleryPhoto[] }>
+  return response.json() as Promise<{
+    uploaded: number
+    photos: GalleryPhoto[]
+    max_photos_per_user?: number
+    photos_remaining?: number
+  }>
+}
+
+/** Límites de subida según EventConfig + cupo restante del usuario. */
+export async function getUploadLimits(eventId: string, token?: string | null) {
+  return apiFetch<{
+    max_photo_size_mb: number
+    max_photos_per_user: number
+    photos_uploaded: number
+    photos_remaining: number
+    require_login_to_upload: boolean
+    allow_uploads: boolean
+    allow_anonymous_view: boolean
+    auto_moderation_enabled: boolean
+    show_unapproved_photos: boolean
+    moderation_enabled: boolean
+    max_file_size: number
+  }>(`/events/${eventId}/photos/upload-params`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
 }
 
 export async function registerPhoto(
@@ -275,6 +304,7 @@ export async function updateEventConfig(
     max_photo_size_mb: number
     max_photos_per_user: number
     auto_moderation_enabled: boolean
+    show_unapproved_photos: boolean
   }
 ) {
   return apiFetch(`/events/${eventId}/config`, {
@@ -316,6 +346,7 @@ export type AdminEvent = {
     allow_anonymous_view?: boolean
     allow_uploads?: boolean
     auto_moderation_enabled?: boolean
+    show_unapproved_photos?: boolean
     max_photo_size_mb?: number
     max_photos_per_user?: number
   }
@@ -368,6 +399,7 @@ export async function createEvent(
       max_photo_size_mb?: number
       max_photos_per_user?: number
       auto_moderation_enabled?: boolean
+      show_unapproved_photos?: boolean
     }
     event_date?: string
     event_type?: "wedding" | "birthday" | "party" | "corporate" | "other"
@@ -436,6 +468,7 @@ export async function updateEvent(
       max_photo_size_mb?: number
       max_photos_per_user?: number
       auto_moderation_enabled?: boolean
+      show_unapproved_photos?: boolean
     }
     event_date?: string
     event_type?: "wedding" | "birthday" | "party" | "corporate" | "other"
